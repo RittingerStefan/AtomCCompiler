@@ -1,6 +1,17 @@
 int main() {
-    int x=0;
+    int x=0; // this is a comment!
     int a = 0123;
     int b = 0x20Ab;
+    a / b;
+    a+b;
+    a-b;
+    a*b;
+    a >= b;
+    a <= b;
+    a < b;
+    a>b;
+    a!=b;
+    a==b;
+    !a;
     print("Hello world!\n");
 }
