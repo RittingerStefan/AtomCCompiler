@@ -24,6 +24,8 @@ public enum TokenType {
     TKN_LE("TKN_LE"),
     TKN_NOT("TKN_NOT"),
     TKN_GE("TKN_GE"),
+    TKN_AND("TKN_AND"),
+    TKN_OR("TKN_OR"),
     TKN_UNK("TKN_UNK");
 
     String type;

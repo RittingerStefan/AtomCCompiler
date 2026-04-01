@@ -8,4 +8,6 @@ public enum State {
     STATE_ASSIGN,
     STATE_LESS,
     STATE_GREATER,
+    STATE_AND_AUX,
+    STATE_OR_AUX,
 }

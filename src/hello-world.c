@@ -13,5 +13,7 @@ int main() {
     a!=b;
     a==b;
     !a;
+    a&&b;
+    a||b;
     print("Hello world!\n");
 }

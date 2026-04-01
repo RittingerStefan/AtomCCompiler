@@ -3,10 +3,14 @@ package lexer;
 public class Token {
     private String value;
     private TokenType type;
+    private int line;
+    private int column;
 
-    public Token(String value, TokenType type) {
+    public Token(String value, TokenType type, int line, int column) {
         this.value = value;
         this.type = type;
+        this.line = line;
+        this.column = column;
     }
 
     public String getValue() {
@@ -27,6 +31,6 @@ public class Token {
 
     @Override
     public String toString() {
-        return "Token [value=" + value + ", type=" + type + "]";
+        return "Token [value=" + value + ", type=" + type + "] at " + line + ":" + column;
     }
 }
