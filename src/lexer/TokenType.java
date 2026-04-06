@@ -26,9 +26,23 @@ public enum TokenType {
     TKN_GE("TKN_GE"),
     TKN_AND("TKN_AND"),
     TKN_OR("TKN_OR"),
+    TKN_CHAR("TKN_CHAR"),
+    TKN_STR("TKN_STR"),
+    TKN_IDENT("TKN_IDENT"),
+    TKN_BREAK_IDENT("TKN_BREAK_IDENT"),
+    TKN_CHAR_IDENT("TKN_CHAR_IDENT"),
+    TKN_DOUBLE_IDENT("TKN_DOUBLE_IDENT"),
+    TKN_ELSE_IDENT("TKN_ELSE_IDENT"),
+    TKN_FOR_IDENT("TKN_FOR_IDENT"),
+    TKN_IF_IDENT("TKN_IF_IDENT"),
+    TKN_INT_IDENT("TKN_INT_IDENT"),
+    TKN_RETURN_IDENT("TKN_RETURN_IDENT"),
+    TKN_STRUCT_IDENT("TKN_STRUCT_IDENT"),
+    TKN_VOID_IDENT("TKN_VOID_IDENT"),
+    TKN_WHILE_IDENT("TKN_WHILE_IDENT"),
     TKN_UNK("TKN_UNK");
 
-    String type;
+    final String type;
     TokenType(String type) {
         this.type = type;
     }
