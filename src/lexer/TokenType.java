@@ -40,6 +40,9 @@ public enum TokenType {
     TKN_STRUCT_IDENT("TKN_STRUCT_IDENT"),
     TKN_VOID_IDENT("TKN_VOID_IDENT"),
     TKN_WHILE_IDENT("TKN_WHILE_IDENT"),
+    TKN_NUM_DEC("TKN_NUM_DEC"),
+    TKN_NUM_OCT("TKN_NUM_OCT"),
+    TKN_NUM_HEX("TKN_NUM_HEX"),
     TKN_UNK("TKN_UNK");
 
     final String type;

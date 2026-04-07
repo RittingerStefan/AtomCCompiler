@@ -18,4 +18,5 @@ int main() {
     a&&b;
     a||b;
     print("Hello world!\n");
+    return 0;
 }

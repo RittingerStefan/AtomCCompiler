@@ -5,7 +5,7 @@ import java.util.ArrayList;
 
 public class Lexer {
     private State state;
-    private ArrayList<Character> SKIP_LIST = new ArrayList<>();
+    private final ArrayList<Character> SKIP_LIST = new ArrayList<>();
     private int line;
     private int column;
 
@@ -96,6 +96,7 @@ public class Lexer {
                     else if(c == '\'') this.state = State.STATE_CHAR_START;
                     else if(c == '\"') this.state = State.STATE_STR_START;
                     else if(Character.isLetter(c)) this.state = State.STATE_IDENTIFIER;
+                    else if(Character.isDigit(c)) this.state = (c == '0') ? State.STATE_NUM_AUX : State.STATE_NUM_DEC;
                     else {
                         return new Token(value.toString(), TokenType.TKN_UNK, line, column);
                     }
@@ -206,6 +207,50 @@ public class Lexer {
                         input.unread(c);
                         value.deleteCharAt(value.length() - 1);
                         return new Token(value.toString(), this.getTypeForIdentifier(value.toString()), line, column);
+                    }
+                    break;
+                case STATE_NUM_DEC:
+                    if(!Character.isDigit(c)) {
+                        this.state = State.STATE_START;
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        return new Token(value.toString(), TokenType.TKN_NUM_DEC, line, column);
+                    }
+                    break;
+                case STATE_NUM_AUX:
+                    if(Character.toLowerCase(c) == 'x') {
+                        this.state = State.STATE_NUM_HEX;
+                    }
+                    else if(Character.isDigit(c) && c < '8') {
+                        this.state= State.STATE_NUM_OCT;
+                    }
+                    else {
+                        this.state = State.STATE_START;
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        return new Token(value.toString(), TokenType.TKN_NUM_DEC, line, column);
+                    }
+                    break;
+                case STATE_NUM_OCT:
+                    if(Character.isDigit(c) && c > '7') {
+                        throw new Error("Error at " + line + ":" + column + " expected octal base number.");
+                    }
+                    else if(!Character.isDigit(c)) {
+                        this.state = State.STATE_START;
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        return new Token(value.toString(), TokenType.TKN_NUM_OCT, line, column);
+                    }
+                    break;
+                case STATE_NUM_HEX:
+                    if(Character.isLetter(c) && Character.toLowerCase(c) > 'f') {
+                        throw new Error("Error at " + line + ":" + column + " expected hexadecimal character.");
+                    }
+                    else if(!Character.isDigit(c) && !(Character.toLowerCase(c) >= 'a' && Character.toLowerCase(c) <= 'f')) {
+                        this.state = State.STATE_START;
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        return new Token(value.toString(), TokenType.TKN_NUM_HEX, line, column);
                     }
                     break;
             }
