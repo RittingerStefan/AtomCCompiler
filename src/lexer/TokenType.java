@@ -43,7 +43,7 @@ public enum TokenType {
     TKN_NUM_DEC("TKN_NUM_DEC"),
     TKN_NUM_OCT("TKN_NUM_OCT"),
     TKN_NUM_HEX("TKN_NUM_HEX"),
-    TKN_UNK("TKN_UNK");
+    TKN_REAL("TKN_REAL");
 
     final String type;
     TokenType(String type) {

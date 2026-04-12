@@ -3,6 +3,7 @@ package lexer;
 public enum State {
     STATE_START,
     STATE_DIV,
+    STATE_MINUS,
     STATE_COMMENT,
     STATE_NOT,
     STATE_ASSIGN,
@@ -20,5 +21,10 @@ public enum State {
     STATE_NUM_DEC,
     STATE_NUM_AUX,
     STATE_NUM_OCT,
-    STATE_NUM_HEX
+    STATE_NUM_HEX,
+    STATE_DOT_AUX,
+    STATE_REAL,
+    STATE_EXP,
+    STATE_EXP_SIGN,
+    STATE_REAL_WITH_EXP
 }

@@ -68,11 +68,12 @@ public class Lexer {
                 continue;
             }
 
-            value.append((char)c);
+            if(c != '\n') {
+                value.append((char)c);
+            }
 
             switch(state) {
                 case STATE_START:
-                    // TODO: more eof checks will be needed, also for '\n'
                     if(c == -1) return new Token("", TokenType.TKN_EOF, line, column);
                     if(c == ',') return new Token(",", TokenType.TKN_COMMA, line, column);
                     if(c == ':') return new Token(":", TokenType.TKN_COLON, line, column);
@@ -95,10 +96,11 @@ public class Lexer {
                     else if(c == '|') this.state = State.STATE_OR_AUX;
                     else if(c == '\'') this.state = State.STATE_CHAR_START;
                     else if(c == '\"') this.state = State.STATE_STR_START;
+                    else if(c == '-') this.state = State.STATE_MINUS;
                     else if(Character.isLetter(c)) this.state = State.STATE_IDENTIFIER;
                     else if(Character.isDigit(c)) this.state = (c == '0') ? State.STATE_NUM_AUX : State.STATE_NUM_DEC;
-                    else {
-                        return new Token(value.toString(), TokenType.TKN_UNK, line, column);
+                    else if(c != '\n') {
+                        throw new Error("Unknown character '" + c + "'");
                     }
                     break;
                 case STATE_DIV:
@@ -107,6 +109,17 @@ public class Lexer {
                         input.unread(c);
                         this.state = State.STATE_START;
                         return new Token("/", TokenType.TKN_DIV, line, column);
+                    }
+                    break;
+                case STATE_MINUS:
+                    if(Character.isDigit(c)) {
+                        this.state = (c == '0') ? State.STATE_NUM_AUX : State.STATE_NUM_DEC;
+                    }
+                    else {
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        this.state = State.STATE_START;
+                        return new Token("-", TokenType.TKN_SUB, line, column);
                     }
                     break;
                 case STATE_COMMENT:
@@ -210,7 +223,13 @@ public class Lexer {
                     }
                     break;
                 case STATE_NUM_DEC:
-                    if(!Character.isDigit(c)) {
+                    if(c == '.') {
+                        this.state = State.STATE_DOT_AUX;
+                    }
+                    else if(Character.toLowerCase(c) == 'e') {
+                        this.state = State.STATE_EXP;
+                    }
+                    else if(!Character.isDigit(c)) {
                         this.state = State.STATE_START;
                         input.unread(c);
                         value.deleteCharAt(value.length() - 1);
@@ -223,6 +242,12 @@ public class Lexer {
                     }
                     else if(Character.isDigit(c) && c < '8') {
                         this.state= State.STATE_NUM_OCT;
+                    }
+                    else if(c == '.') {
+                        this.state = State.STATE_DOT_AUX;
+                    }
+                    else if(Character.toLowerCase(c) == 'e') {
+                        this.state = State.STATE_EXP;
                     }
                     else {
                         this.state = State.STATE_START;
@@ -251,6 +276,58 @@ public class Lexer {
                         input.unread(c);
                         value.deleteCharAt(value.length() - 1);
                         return new Token(value.toString(), TokenType.TKN_NUM_HEX, line, column);
+                    }
+                    break;
+                case STATE_DOT_AUX:
+                    if(!Character.isDigit(c)) {
+                        this.state = State.STATE_START;
+                        throw new Error("Error at " + line + ":" + column + " expected digit.");
+                    }
+                    this.state = State.STATE_REAL;
+                    break;
+                case STATE_REAL:
+                    if(Character.toLowerCase(c) == 'e') {
+                        this.state = State.STATE_EXP;
+                    }
+                    else if(Character.isLetter(c)) {
+                        this.state = State.STATE_START;
+                        throw new Error("Error at " + line + ":" + column + " expected digit or exponent.");
+                    }
+                    else if(!Character.isDigit(c)) {
+                        this.state = State.STATE_START;
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        return new Token(value.toString(), TokenType.TKN_REAL, line, column);
+                    }
+                    break;
+                case STATE_EXP:
+                    if(c == '+' || c == '-') {
+                        this.state = State.STATE_EXP_SIGN;
+                    }
+                    else if(Character.isDigit(c)) {
+                        this.state = State.STATE_REAL_WITH_EXP;
+                    }
+                    else {
+                        this.state = State.STATE_START;
+                        throw new Error("Error at " + line + ":" + column + " expected digit.");
+                    }
+                    break;
+                case STATE_EXP_SIGN:
+                    if(!Character.isDigit(c)) {
+                        this.state = State.STATE_START;
+                        throw new Error("Error at " + line + ":" + column + " expected digit.");
+                    }
+                    this.state = State.STATE_REAL_WITH_EXP;
+                    break;
+                case STATE_REAL_WITH_EXP:
+                    if(Character.isLetter(c)) {
+                        this.state = State.STATE_START;
+                        throw new Error("Error at " + line + ":" + column + " expected digit.");
+                    } else if(!Character.isDigit(c)) {
+                        this.state = State.STATE_START;
+                        input.unread(c);
+                        value.deleteCharAt(value.length() - 1);
+                        return new Token(value.toString(), TokenType.TKN_REAL, line, column);
                     }
                     break;
             }
