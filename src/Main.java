@@ -1,5 +1,6 @@
 import lexer.Lexer;
 import lexer.Token;
+import syntacticAnalyzer.SyntacticAnalyzer;
 
 import java.util.ArrayList;
 
@@ -8,11 +9,9 @@ import java.util.ArrayList;
 public class Main {
     public static void main(String[] args) {
         Lexer lexer = new Lexer();
+        SyntacticAnalyzer syntacticAnalyzer = new SyntacticAnalyzer();
 
         ArrayList<Token> tokens = lexer.parseFile("src/hello-world.c");
-
-        for(Token token : tokens) {
-            System.out.println(token);
-        }
+        syntacticAnalyzer.analyze(tokens);
     }
 }
