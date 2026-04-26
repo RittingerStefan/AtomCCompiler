@@ -1,12 +1,28 @@
+struct name {
+    int a;
+    char b[];
+    double c[10];
+};
+
 int main() {
-    int x=0; // this is a comment!
-    int a = 0123;
-    int b = 0x20Ab;
-    int c = -123;
-    double d = -0.123;
-    double exp = 123e132;
-    char a = 'a';
-    char escape = '\\';
+    int x; // this is a comment!
+    int a;
+    int b;
+    int c;
+    double d;
+    double exp;
+    char a;
+    char escape;
+
+    x=0;
+    a = 0123;
+    b = 0x20Ab;
+    c = -123;
+    d = -0.123;
+    exp = 123e132;
+    a='a';
+    escape = '\\';
+
     a / b;
     a+b;
     a-b;
