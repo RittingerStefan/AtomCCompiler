@@ -23,19 +23,8 @@ int main() {
     a='a';
     escape = '\\';
 
-    a / b;
-    a+b;
-    a-b;
-    a*b;
-    a >= b;
-    a <= b;
-    a < b;
-    a>b;
-    a!=b;
-    a==b;
-    !a;
-    a&&b;
-    a||b;
+    complex = (a+b)/(c*d);
+
     print("Hello world!\n");
     return 0;
 }

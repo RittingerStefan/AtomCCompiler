@@ -37,6 +37,8 @@ public class SyntacticAnalyzer {
             lineAndColumn.append(firstToken.getLine());
             lineAndColumn.append(":");
             lineAndColumn.append(firstToken.getColumn());
+            lineAndColumn.append("; Current token is: ");
+            lineAndColumn.append(firstToken);
 
             return lineAndColumn.toString();
         }
@@ -81,12 +83,14 @@ public class SyntacticAnalyzer {
 
     // rule: varDef: typeBase ID arrayDecl? SEMICOLON
     private boolean varDef() {
+        Token firstToken = tokens.getFirst();
         if(!typeBase()) {
             return false;
         }
 
         if(!consume(TokenType.TKN_IDENT)) {
-            throw new Error("Missing identifier in declaration at " + getLineAndColumnForError());
+            tokens.addFirst(firstToken);
+            return false;
         }
 
         arrayDecl();
@@ -171,7 +175,7 @@ public class SyntacticAnalyzer {
     // rule: stmCompound: LACC ( varDef | stm )* RACC
     private boolean stmCompound() {
         if(!consume(TokenType.TKN_LACC)) {
-            throw new Error("Missing '{' in statement at " + getLineAndColumnForError());
+            return false;
         }
 
         while(varDef() || stm());
@@ -318,14 +322,324 @@ public class SyntacticAnalyzer {
         expr();
 
         if(!consume(TokenType.TKN_SEMICOLON)) {
-            throw new Error("Missing ';' after expression at " + getLineAndColumnForError());
+            return false;
         }
 
         return true;
     }
 
-    // TODO
+    // rule: expr: exprAssign
     private boolean expr() {
+        return exprAssing();
+    }
+
+    // rule: exprAssign: exprUnary ASSIGN exprAssign | exprOr
+    private boolean exprAssing() {
+        if(exprUnary()) {
+            if(consume(TokenType.TKN_ASSIGN)) {
+                if(exprAssing()) {
+                    return true;
+                }
+            }
+            else
+                return false;
+        }
+        else if(exprOr()) {
+            return true;
+        }
+            return false;
+    }
+
+    // rule: exprOr: exprOr OR exprAnd | exprAnd
+    // rewritten: exprAnd exprOrAux
+    private boolean exprOr() {
+        if (!exprAnd()) {
+            return false;
+        }
+
+        if(!exprOrAux()) {
+            throw new Error("Wrong OR expression at " + getLineAndColumnForError());
+        }
+
         return true;
     }
+
+    // rule: exprOrAux: OR exprAnd exprOrAux | eps
+    private boolean exprOrAux() {
+        if(consume(TokenType.TKN_OR)) {
+            if(exprAnd()) {
+                if (exprOrAux()) {
+                    return true;
+                }
+            }
+            else throw new Error("Missing '||' in expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprAnd: exprAnd AND exprEq | exprEq
+    // rewritten: exprAnd: exprEq exprAndAux
+    private boolean exprAnd() {
+        if(!exprEq()) {
+            return false;
+        }
+
+        if(!exprAndAux()) {
+            throw new Error("Wrong AND expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+
+    // rule: exprAndAux: AND exprEq exprAndAux | eps
+    private boolean exprAndAux() {
+        if(consume(TokenType.TKN_AND)) {
+            if(exprEq()) {
+                if(exprAndAux()) {
+                    return true;
+                }
+            } throw new Error("Missing '&&' in expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprEq: exprEq ( EQUAL | NOTEQ ) exprRel | exprRel
+    // rewritten: exprEq: exprRel exprEqAux
+    private boolean exprEq() {
+        if(!exprRel()) {
+            return false;
+        }
+
+        if(!exprEqAux()) {
+            throw new Error("Wrong EQUAL expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprEqAux: (EQUAL | NOTEQ) exprRel exprEqAux | eps
+    private boolean exprEqAux() {
+        if(consume(TokenType.TKN_EQ) || consume(TokenType.TKN_NOT_EQ)) {
+            if(exprRel()) {
+                if(exprEqAux()) {
+                    return true;
+                }
+            } else throw new Error("Missing '==' or '!=' in expression at  " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+
+    // rule: exprRel: exprRel ( LESS | LESSEQ | GREATER | GREATEREQ ) exprAdd | exprAdd
+    // rewritten: exprRel: exprAdd exprRelAux
+    private boolean exprRel() {
+        if(!exprAdd()) {
+            return false;
+        }
+
+        if(!exprRelAux()) {
+            throw new Error("Wrong REL expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprRelAux: ( LESS | LESSEQ | GREATER | GREATEREQ ) exprAdd exprRelAux | eps
+    private boolean exprRelAux() {
+        if(consume(TokenType.TKN_LT) || consume(TokenType.TKN_GT) || consume(TokenType.TKN_LE) || consume(TokenType.TKN_GE)) {
+            if(exprAdd()) {
+                if(exprRelAux()) {
+                    return true;
+                }
+            } throw new Error("Mission comparison in expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprAdd: exprAdd ( ADD | SUB ) exprMul | exprMul
+    // rewritten: exprAdd: exprMul exprAddAux
+    private boolean exprAdd() {
+        if(!exprMul()) {
+            return false;
+        }
+
+        if(!exprAddAux()) {
+            throw new Error("Wrong ADD expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprAddAux: ( ADD | SUB ) exprMul exprAddAux | eps
+    private boolean exprAddAux() {
+        if(consume(TokenType.TKN_ADD) || consume(TokenType.TKN_SUB)) {
+            if(exprMul()) {
+                if(exprAddAux()) {
+                    return true;
+                }
+            } else throw new Error("Missing '+' or '-' in expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprMul: exprMul ( MUL | DIV ) exprCast | exprCast
+    // rewritten: exprMul: exprCast exprMulAux
+    private boolean exprMul() {
+        if(!exprCast()) {
+            return false;
+        }
+
+        if(!exprMulAux()) {
+            throw new Error("Wrong MUL expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprMulAux: ( MUL | DIV ) exprCast exprMulAux | eps
+    private boolean exprMulAux() {
+        if(consume(TokenType.TKN_MUL) || consume(TokenType.TKN_DIV)) {
+            if(exprCast()) {
+                if(exprMulAux()) {
+                    return true;
+                }
+            } else throw new Error("Missing '*' or '/' in expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprCast: LPAR typeBase arrayDecl? RPAR exprCast | exprUnary
+    private boolean exprCast() {
+        if(!consume(TokenType.TKN_LPAREN)) {
+            return exprUnary();
+        }
+
+        if(!typeBase()) {
+            throw new Error("Unrecognized type at " + getLineAndColumnForError());
+        }
+
+        arrayDecl();
+
+        if(!consume(TokenType.TKN_RPAREN)) {
+            throw new Error("Missing ')' in expression cast at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprUnary: ( SUB | NOT ) exprUnary | exprPostfix
+    private boolean exprUnary() {
+        if(!(consume(TokenType.TKN_SUB) || consume(TokenType.TKN_NOT))) {
+            return exprPostfix();
+        }
+
+        if(!exprUnary()) {
+            throw new Error("Wrong UNARY expr at " + getLineAndColumnForError());
+        }
+        return true;
+    }
+
+
+    // rule: exprPostfix: exprPostfix LBRACKET expr RBRACKET
+    //	    | exprPostfix DOT ID
+    //	    | exprPrimary
+    // rewritten: exprPostFix: exprPrimary exprPostfixAux
+    private boolean exprPostfix() {
+        if(!exprPrimary()) {
+            return false;
+        }
+
+        if(!exprPostfixAux()) {
+            throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // rule: exprPostfixAux: ( DOT ID exprPrimary exprPostfixAux ) | ( LBRACKET expr RBRACKET exprPrimary exrpPostfixAux) | eps
+    private boolean exprPostfixAux() {
+        if(consume(TokenType.TKN_DOT)) {
+            if(!consume(TokenType.TKN_IDENT)) {
+                throw new Error("Missing identifier for struct direct member access at " + getLineAndColumnForError());
+            }
+
+            if(!exprPrimary()) {
+                throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
+            }
+
+            if(exprPostfixAux()) {
+                return true;
+            }
+        }
+        else if(consume(TokenType.TKN_LBRACKET)) {
+            if(!expr()) {
+                throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
+            }
+
+            if(!consume(TokenType.TKN_RBRACKET)) {
+                throw new Error("Missing ']' in expression postfix at " + getLineAndColumnForError());
+            }
+
+            if(!exprPrimary()) {
+                throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
+            }
+
+            if(exprPostfixAux()) {
+                return true;
+            }
+        }
+        return true;
+    }
+
+    // rule: exprPrimary: ID ( LPAR ( expr ( COMMA expr )* )? RPAR )?
+    //	    | CT_INT | CT_REAL | CT_CHAR | CT_STRING | LPAR expr RPAR
+    private boolean exprPrimary() {
+        return exprPrimaryAux1() || consume(TokenType.TKN_NUM_DEC) || consume(TokenType.TKN_NUM_HEX) || consume(TokenType.TKN_NUM_OCT)
+                || consume(TokenType.TKN_REAL) || consume(TokenType.TKN_CHAR) || consume(TokenType.TKN_STR) || exprPrimaryAux2();
+    }
+
+    // rule: ID ( LPAR ( expr ( COMMA expr )* )? RPAR )?
+    private boolean exprPrimaryAux1() {
+        if(!consume(TokenType.TKN_IDENT)) {
+            return false;
+        }
+
+        if(consume(TokenType.TKN_LPAREN)) {
+            do {
+                expr();
+            } while(consume(TokenType.TKN_COMMA));
+
+            if(!consume(TokenType.TKN_RPAREN)) {
+                throw new Error("Missing ')' in expression primary at " + getLineAndColumnForError());
+            }
+        }
+
+        return true;
+    }
+
+    // rule: LPAR expr RPAR
+    private boolean exprPrimaryAux2() {
+        if(!consume(TokenType.TKN_LPAREN)) {
+            return false;
+        }
+
+        if(!expr()) {
+            throw new Error("Wrong primary expression at " + getLineAndColumnForError());
+        }
+
+        if(!consume(TokenType.TKN_RPAREN)) {
+            throw new Error("Missing ')' in primary expression at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+
 }
