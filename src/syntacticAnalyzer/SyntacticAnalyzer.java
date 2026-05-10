@@ -21,12 +21,22 @@ public class SyntacticAnalyzer {
     private boolean consume(TokenType toConsume) {
         Token firstToken = tokens.getFirst();
 
+        //System.out.print("Reading: " + firstToken + "; Comparing with: " + toConsume);
         if(firstToken.getType() == toConsume) {
             tokens.removeFirst();
+            //System.out.println(" -> consumed");
             return true;
         }
 
+        //System.out.println();
+
         return false;
+    }
+
+    private boolean checkNextToken(TokenType toCheck) {
+        Token firstToken = tokens.getFirst();
+
+        return firstToken.getType() == toCheck;
     }
 
     private String getLineAndColumnForError() {
@@ -333,10 +343,13 @@ public class SyntacticAnalyzer {
         return exprAssing();
     }
 
-    // rule: exprAssign: exprUnary ASSIGN exprAssign | exprOr
+    // rule: exprAssign: exprAssignable ASSIGN exprAssign | exprOr
     private boolean exprAssing() {
-        if(exprUnary()) {
+        if(exprAssignable()) {
             if(consume(TokenType.TKN_ASSIGN)) {
+                if(checkNextToken(TokenType.TKN_SEMICOLON)) {
+                    throw new Error("Missing value for assignment at " + getLineAndColumnForError());
+                }
                 if(exprAssing()) {
                     return true;
                 }
@@ -347,7 +360,47 @@ public class SyntacticAnalyzer {
         else if(exprOr()) {
             return true;
         }
+
+        return false;
+    }
+
+    // rule: exprAssignable: ID ((LBRACKET exprOR  RBRACKET)? (DOT ID)?)*
+    private boolean exprAssignable() {
+        Token firstToken = tokens.getFirst();
+
+        if(!consume(TokenType.TKN_IDENT)) {
             return false;
+        }
+
+        if(!checkNextToken(TokenType.TKN_LBRACKET) && !checkNextToken(TokenType.TKN_DOT)) {
+            if(checkNextToken(TokenType.TKN_ASSIGN)) {
+                return true;
+            }
+
+            tokens.addFirst(firstToken);
+            return false;
+        }
+
+        while(true) {
+            if(consume(TokenType.TKN_LBRACKET)) {
+                if(!exprOr()) {
+                    throw new Error("Wrong expression as array index at " + getLineAndColumnForError());
+                }
+                if(!consume(TokenType.TKN_RBRACKET)) {
+                    throw new Error("Missing ']' after array index at " + getLineAndColumnForError());
+                }
+                continue;
+            }
+            if(consume(TokenType.TKN_DOT)) {
+                if(!consume(TokenType.TKN_IDENT)) {
+                    throw new Error("Expected identifier of struct member at " + getLineAndColumnForError());
+                }
+                continue;
+            }
+            break;
+        }
+
+        return true;
     }
 
     // rule: exprOr: exprOr OR exprAnd | exprAnd
@@ -515,20 +568,48 @@ public class SyntacticAnalyzer {
         return true;
     }
 
-    // rule: exprCast: LPAR typeBase arrayDecl? RPAR exprCast | exprUnary
+    // rule: exprCast: LPAR typeBase arrayCastType? RPAR exprCast | exprUnary
     private boolean exprCast() {
+        Token firstToken = tokens.getFirst();
         if(!consume(TokenType.TKN_LPAREN)) {
             return exprUnary();
         }
 
+        Token secondToken = tokens.getFirst();
+
         if(!typeBase()) {
-            throw new Error("Unrecognized type at " + getLineAndColumnForError());
+            tokens.addFirst(firstToken);
+            return exprUnary();
         }
 
-        arrayDecl();
+        if(!arrayCastType()) {
+            tokens.addFirst(secondToken);
+            tokens.addFirst(firstToken);
+            return exprUnary();
+        }
 
         if(!consume(TokenType.TKN_RPAREN)) {
             throw new Error("Missing ')' in expression cast at " + getLineAndColumnForError());
+        }
+
+        if(!exprCast()) {
+            throw new Error("Wrong expr cast at " + getLineAndColumnForError());
+        }
+
+        return true;
+    }
+
+    // used to optionally allow [] as type cast
+    private boolean arrayCastType() {
+        Token firstToken = tokens.getFirst();
+
+        if(!consume(TokenType.TKN_LBRACKET)) {
+            return false;
+        }
+
+        if(!consume(TokenType.TKN_RBRACKET)) {
+            tokens.addFirst(firstToken);
+            return false;
         }
 
         return true;
@@ -563,15 +644,11 @@ public class SyntacticAnalyzer {
         return true;
     }
 
-    // rule: exprPostfixAux: ( DOT ID exprPrimary exprPostfixAux ) | ( LBRACKET expr RBRACKET exprPrimary exrpPostfixAux) | eps
+    // rule: exprPostfixAux: ( DOT ID exprPostfixAux ) | ( LBRACKET expr RBRACKET exrpPostfixAux) | eps
     private boolean exprPostfixAux() {
         if(consume(TokenType.TKN_DOT)) {
             if(!consume(TokenType.TKN_IDENT)) {
                 throw new Error("Missing identifier for struct direct member access at " + getLineAndColumnForError());
-            }
-
-            if(!exprPrimary()) {
-                throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
             }
 
             if(exprPostfixAux()) {
@@ -585,10 +662,6 @@ public class SyntacticAnalyzer {
 
             if(!consume(TokenType.TKN_RBRACKET)) {
                 throw new Error("Missing ']' in expression postfix at " + getLineAndColumnForError());
-            }
-
-            if(!exprPrimary()) {
-                throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
             }
 
             if(exprPostfixAux()) {

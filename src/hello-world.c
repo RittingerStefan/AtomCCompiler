@@ -4,26 +4,29 @@ struct name {
     double c[10];
 };
 
+int doSomething() {
+    bool a;
+    bool b;
+
+    a = true;
+    b = false;
+
+    return (a || b) && (!a || b);
+}
+
 int main() {
-    int x; // this is a comment!
-    int a;
-    int b;
-    int c;
-    double d;
-    double exp;
-    char a;
-    char escape;
+    a = 0;
 
-    x=0;
-    a = 0123;
-    b = 0x20Ab;
-    c = -123;
-    d = -0.123;
-    exp = 123e132;
-    a='a';
-    escape = '\\';
+    for(i = 0; i <= n[0].id; i = i+1) {
+        if(a + 2 == 0) {
+            break;
+        }
+        else {
+            print("Odd");
+        }
 
-    complex = (a+b)/(c*d);
+        a = a+1;
+    }
 
     print("Hello world!\n");
     return 0;

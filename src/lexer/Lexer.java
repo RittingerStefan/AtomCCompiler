@@ -100,7 +100,7 @@ public class Lexer {
                     else if(Character.isLetter(c)) this.state = State.STATE_IDENTIFIER;
                     else if(Character.isDigit(c)) this.state = (c == '0') ? State.STATE_NUM_AUX : State.STATE_NUM_DEC;
                     else if(c != '\n') {
-                        throw new Error("Unknown character '" + c + "'");
+                        throw new Error("Unknown character '" + (char)c + "'");
                     }
                     break;
                 case STATE_DIV:
