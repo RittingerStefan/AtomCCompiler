@@ -1,16 +1,22 @@
-package syntacticAnalyzer;
+package syntSemAnalyzer;
 
 import lexer.Token;
 import lexer.TokenType;
+import syntSemAnalyzer.semantic.Symbol;
+import syntSemAnalyzer.semantic.SymbolTable;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SyntacticAnalyzer {
+public class SyntSemAnalyzer {
     List<Token> tokens;
+    SymbolTable symbolTable;
 
-    public SyntacticAnalyzer() {
+    public SyntSemAnalyzer() {
         tokens = new ArrayList<>();
+        symbolTable = new SymbolTable();
+        symbolTable.addDomain(); // the global area
+        // TODO: Add globally defined functions, like print
     }
 
     public void analyze(List<Token> tokens) {
@@ -59,6 +65,7 @@ public class SyntacticAnalyzer {
     private void unit() {
         while(structDef() || fnDef() || varDef());
 
+
         if(!consume(TokenType.TKN_EOF)) {
             throw new Error("File should only contain struct, function or variable definitions");
         }
@@ -70,6 +77,7 @@ public class SyntacticAnalyzer {
             return false;
         }
 
+        Token structName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
             throw new Error("Missing identifier in structure definition at " + getLineAndColumnForError());
         }
@@ -78,7 +86,12 @@ public class SyntacticAnalyzer {
             throw new Error("Missing '{' in structure definition at " + getLineAndColumnForError());
         }
 
-        while(varDef());
+        List<String> fields = new ArrayList<>();
+        Symbol field = varDefStruct();
+        while(field != null) {
+            fields.add(field.toString());
+            field = varDefStruct();
+        }
 
         if(!consume(TokenType.TKN_RACC)) {
             throw new Error("Missing '}' in structure definition at " + getLineAndColumnForError());
@@ -88,104 +101,204 @@ public class SyntacticAnalyzer {
             throw new Error("Missing ';' in structure definition at " + getLineAndColumnForError());
         }
 
+        symbolTable.addSymbol(new Symbol(structName.getValue(), fields));
+
         return true;
     }
 
     // rule: varDef: typeBase ID arrayDecl? SEMICOLON
-    private boolean varDef() {
-        Token firstToken = tokens.getFirst();
+    // duplicated to make adding struct fields easier
+    private Symbol varDefStruct() {
+        Token typeName = tokens.getFirst();
         if(!typeBase()) {
-            return false;
+            return null;
         }
 
+        Token varName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
-            tokens.addFirst(firstToken);
-            return false;
+            tokens.addFirst(typeName);
+            return null;
         }
 
-        arrayDecl();
+        int arrayElementValue = arrayDecl();
 
         if(!consume(TokenType.TKN_SEMICOLON)) {
             throw new Error("Missing ';' in declaration at " + getLineAndColumnForError());
         }
 
-        return true;
+        // check that types are defined
+        if(typeName.getType() == TokenType.TKN_IDENT) {
+            if(!symbolTable.checkIfStructDefined(typeName.getValue())) {
+                throw new Error("Unknown type '" + typeName.getValue() +  "' at " + getLineAndColumnForError());
+            }
+        }
+
+        // instead of adding value to domain, it is returned
+        Symbol newVar;
+
+        if(arrayElementValue >= 0)
+            newVar = new Symbol(varName.getValue(), typeName.getValue(), arrayElementValue);
+        else
+            newVar = new Symbol(varName.getValue(), typeName.getValue());
+
+        return newVar;
     }
 
-    // rule: typeBase: INT | DOUBLE | CHAR | STRUCT ID
-    private boolean typeBase() {
-        return consume(TokenType.TKN_INT_IDENT) || consume(TokenType.TKN_DOUBLE_IDENT)
-                || consume(TokenType.TKN_CHAR_IDENT) || consume(TokenType.TKN_IDENT);
-    }
-
-    // rule: arrayDecl: LBRACKET CT_INT? RBRACKET
-    private boolean arrayDecl() {
-        if(!consume(TokenType.TKN_LBRACKET)) {
+    // rule: varDef: typeBase ID arrayDecl? SEMICOLON
+    private boolean varDef() {
+        Token typeName = tokens.getFirst();
+        if(!typeBase()) {
             return false;
         }
 
-        consume(TokenType.TKN_NUM_DEC);
+        Token varName = tokens.getFirst();
+        if(!consume(TokenType.TKN_IDENT)) {
+            tokens.addFirst(typeName);
+            return false;
+        }
+
+        int arrayElementValue = arrayDecl();
+
+        if(!consume(TokenType.TKN_SEMICOLON)) {
+            throw new Error("Missing ';' in declaration at " + getLineAndColumnForError());
+        }
+
+
+        // check that types are defined
+        if(typeName.getType() == TokenType.TKN_IDENT) {
+            if(!symbolTable.checkIfStructDefined(typeName.getValue())) {
+                throw new Error("Unknown type '" + typeName.getValue() +  "' at " + getLineAndColumnForError());
+            }
+        }
+
+        // add value to current domain
+        Symbol newVar;
+
+        if(arrayElementValue >= 0)
+            newVar = new Symbol(varName.getValue(), typeName.getValue(), arrayElementValue);
+        else
+            newVar = new Symbol(varName.getValue(), typeName.getValue());
+
+
+        if(symbolTable.checkIfDefinedInCurrentDomain(newVar)) {
+            throw new Error("Duplicate variable definition at " + getLineAndColumnForError());
+        }
+
+        symbolTable.addSymbol(newVar);
+        return true;
+    }
+
+    // rule: typeBase: INT | DOUBLE | CHAR | BOOL | STRUCT ID
+    private boolean typeBase() {
+        return consume(TokenType.TKN_INT_IDENT) || consume(TokenType.TKN_DOUBLE_IDENT)
+                || consume(TokenType.TKN_CHAR_IDENT) || consume(TokenType.TKN_BOOL_IDENT)
+                || consume(TokenType.TKN_IDENT);
+    }
+
+    // rule: arrayDecl: LBRACKET CT_INT? RBRACKET
+    private int arrayDecl() {
+        int value = 0;
+        if(!consume(TokenType.TKN_LBRACKET)) {
+            return -1;
+        }
+
+        Token elementCount = tokens.getFirst();
+        if(consume(TokenType.TKN_NUM_DEC)) {
+            value = Integer.parseInt(elementCount.getValue());
+        }
 
         if(!consume(TokenType.TKN_RBRACKET)) {
             throw new Error("Missing ']' in array declaration at " + getLineAndColumnForError());
         }
 
-        return true;
+        return value;
     }
 
     // rule: fnDef: ( typeBase | VOID ) ID
     //	            LPAR ( fnParam ( COMMA fnParam )* )? RPAR
     //	            stmCompound
     private boolean fnDef() {
-        Token firstToken = tokens.getFirst();
+        Token returnType = tokens.getFirst();
         if(!(typeBase() || consume(TokenType.TKN_VOID_IDENT))) {
             return false;
         }
 
-        Token secondToken = tokens.getFirst();
+        Token functionName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
             throw new Error("Missing identifier in declaration at " + getLineAndColumnForError());
         }
 
         if(!consume(TokenType.TKN_LPAREN)) {
-            tokens.addFirst(secondToken);
-            tokens.addFirst(firstToken);
+            tokens.addFirst(functionName);
+            tokens.addFirst(returnType);
             return false;
         }
 
+        List<String> fnParams = new ArrayList<>();
+        List<Symbol> fnParamSymbols = new ArrayList<>();
+        Symbol param;
         do {
-            fnParam();
+            param = fnParam();
+            if(param != null) {
+                fnParamSymbols.add(param);
+                fnParams.add(param.toString());
+            }
         } while (consume(TokenType.TKN_COMMA));
 
         if(!consume(TokenType.TKN_RPAREN)) {
             throw new Error("Missing ')' in function declaration at " + getLineAndColumnForError());
         }
 
-        if(!stmCompound()) {
+        symbolTable.addSymbol(new Symbol(functionName.getValue(), returnType.getValue(), fnParams));
+
+        if(!stmCompound(fnParamSymbols)) {
             throw new Error("Error in body of function at " + getLineAndColumnForError());
         }
         return true;
     }
 
     // rule: fnParam: typeBase ID arrayDecl?
-    private boolean fnParam() {
+    private Symbol fnParam() {
+        Token type = tokens.getFirst();
         if(!typeBase()) {
-            return false;
+            return null;
         }
 
+        Token paramName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
             throw new Error("Missing identifier in parameter declaration at " + getLineAndColumnForError());
         }
 
-        arrayDecl();
+        int arrayElementValue = arrayDecl();
 
-        return true;
+        // check that types are defined
+        if(type.getType() == TokenType.TKN_IDENT) {
+            if(!symbolTable.checkIfStructDefined(type.getValue())) {
+                throw new Error("Unknown type '" + type.getValue() +  "' at " + getLineAndColumnForError());
+            }
+        }
+
+        Symbol newVar;
+
+        if(arrayElementValue >= 0)
+            newVar = new Symbol(paramName.getValue(), type.getValue(), arrayElementValue);
+        else
+            newVar = new Symbol(paramName.getValue(), type.getValue());
+
+        return newVar;
     }
 
     // rule: stmCompound: LACC ( varDef | stm )* RACC
-    private boolean stmCompound() {
+    private boolean stmCompound(List<Symbol> fnParamSymbols) {
         if(!consume(TokenType.TKN_LACC)) {
             return false;
+        }
+
+        this.symbolTable.addDomain();
+        if(fnParamSymbols != null) {
+            for(Symbol fnParam : fnParamSymbols) {
+                this.symbolTable.addSymbol(fnParam);
+            }
         }
 
         while(varDef() || stm());
@@ -193,6 +306,7 @@ public class SyntacticAnalyzer {
         if(!consume(TokenType.TKN_RACC)) {
             throw new Error("Missing '}' in statement at " + getLineAndColumnForError());
         }
+        this.symbolTable.removeDomain();
 
         return true;
     }
@@ -205,7 +319,7 @@ public class SyntacticAnalyzer {
     //	    | RETURN expr? SEMICOLON
     //	    | expr? SEMICOLON
     private boolean stm() {
-        return stmCompound() || ifStm() || whileStm() || forStm() || breakStm() || returnStm() || exprStm();
+        return stmCompound(null) || ifStm() || whileStm() || forStm() || breakStm() || returnStm() || exprStm();
     }
 
     // rule: IF LPAR expr RPAR stm ( ELSE stm )?
@@ -366,10 +480,13 @@ public class SyntacticAnalyzer {
 
     // rule: exprAssignable: ID ((LBRACKET exprOR  RBRACKET)? (DOT ID)?)*
     private boolean exprAssignable() {
-        Token firstToken = tokens.getFirst();
-
+        Token varName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
             return false;
+        }
+
+        if(!symbolTable.checkIfDefined(varName.getValue())) {
+            throw new Error("Undeclared identifier used at " + getLineAndColumnForError());
         }
 
         if(!checkNextToken(TokenType.TKN_LBRACKET) && !checkNextToken(TokenType.TKN_DOT)) {
@@ -377,7 +494,7 @@ public class SyntacticAnalyzer {
                 return true;
             }
 
-            tokens.addFirst(firstToken);
+            tokens.addFirst(varName);
             return false;
         }
 
@@ -680,8 +797,13 @@ public class SyntacticAnalyzer {
 
     // rule: ID ( LPAR ( expr ( COMMA expr )* )? RPAR )?
     private boolean exprPrimaryAux1() {
+        Token idName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
             return false;
+        }
+
+        if(!symbolTable.checkIfDefined(idName.getValue())) {
+            throw new Error("Undefined identifier '" + idName.getValue() + "' at " + getLineAndColumnForError());
         }
 
         if(consume(TokenType.TKN_LPAREN)) {

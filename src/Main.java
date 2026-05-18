@@ -1,6 +1,6 @@
 import lexer.Lexer;
 import lexer.Token;
-import syntacticAnalyzer.SyntacticAnalyzer;
+import syntSemAnalyzer.SyntSemAnalyzer;
 
 import java.util.ArrayList;
 
@@ -9,9 +9,9 @@ import java.util.ArrayList;
 public class Main {
     public static void main(String[] args) {
         Lexer lexer = new Lexer();
-        SyntacticAnalyzer syntacticAnalyzer = new SyntacticAnalyzer();
+        SyntSemAnalyzer syntSemAnalyzer = new SyntSemAnalyzer();
 
         ArrayList<Token> tokens = lexer.parseFile("src/hello-world.c");
-        syntacticAnalyzer.analyze(tokens);
+        syntSemAnalyzer.analyze(tokens);
     }
 }

@@ -41,6 +41,7 @@ public class Lexer {
         if(identifier.equalsIgnoreCase("char")) return TokenType.TKN_CHAR_IDENT;
         if(identifier.equalsIgnoreCase("double")) return TokenType.TKN_DOUBLE_IDENT;
         if(identifier.equalsIgnoreCase("int")) return TokenType.TKN_INT_IDENT;
+        if(identifier.equalsIgnoreCase("bool")) return TokenType.TKN_BOOL_IDENT;
         if(identifier.equalsIgnoreCase("void")) return TokenType.TKN_VOID_IDENT;
         if(identifier.equalsIgnoreCase("if")) return TokenType.TKN_IF_IDENT;
         if(identifier.equalsIgnoreCase("else")) return TokenType.TKN_ELSE_IDENT;
