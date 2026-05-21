@@ -6,6 +6,7 @@ import syntSemAnalyzer.semantic.Symbol;
 import syntSemAnalyzer.semantic.SymbolTable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class SyntSemAnalyzer {
@@ -16,7 +17,16 @@ public class SyntSemAnalyzer {
         tokens = new ArrayList<>();
         symbolTable = new SymbolTable();
         symbolTable.addDomain(); // the global area
-        // TODO: Add globally defined functions, like print
+        // predefined functions
+        symbolTable.addSymbol(new Symbol("put_s", "void", List.of("ARRAY:s:char:0")));
+        symbolTable.addSymbol(new Symbol("get_s", "void", List.of("ARRAY:s:char:0")));
+        symbolTable.addSymbol(new Symbol("put_i", "void", List.of("SIMPLE:i:int")));
+        symbolTable.addSymbol(new Symbol("get_i ", "int", null));
+        symbolTable.addSymbol(new Symbol("put_d", "void", List.of("SIMPLE:d:double")));
+        symbolTable.addSymbol(new Symbol("get_d", "double", null));
+        symbolTable.addSymbol(new Symbol("put_c", "void", List.of("SIMPLE:c:char")));
+        symbolTable.addSymbol(new Symbol("get_c", "char", null));
+        symbolTable.addSymbol(new Symbol("seconds", "double", null));
     }
 
     public void analyze(List<Token> tokens) {
@@ -249,7 +259,13 @@ public class SyntSemAnalyzer {
             throw new Error("Missing ')' in function declaration at " + getLineAndColumnForError());
         }
 
-        symbolTable.addSymbol(new Symbol(functionName.getValue(), returnType.getValue(), fnParams));
+        Symbol newFunc = new Symbol(functionName.getValue(), returnType.getValue(), fnParams);
+        if(!symbolTable.checkIfDefined(newFunc)) {
+            symbolTable.addSymbol(newFunc);
+        }
+        else {
+            throw new Error("Redefining function at " + getLineAndColumnForError());
+        }
 
         if(!stmCompound(fnParamSymbols)) {
             throw new Error("Error in body of function at " + getLineAndColumnForError());

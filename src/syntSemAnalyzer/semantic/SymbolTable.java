@@ -22,6 +22,16 @@ public class SymbolTable {
         this.symbolTable.removeLast();
     }
 
+    public boolean checkIfDefined(Symbol symbol) {
+        for(List<Symbol> domain : this.symbolTable.reversed()) {
+            if(domain.contains(symbol)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public boolean checkIfDefined(String name) {
         for(List<Symbol> domain : this.symbolTable.reversed()) {
             for(Symbol symbol : domain) {

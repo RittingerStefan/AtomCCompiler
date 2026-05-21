@@ -1,5 +1,6 @@
 package syntSemAnalyzer.semantic;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,7 +37,7 @@ public class Symbol {
     public Symbol(String name, String returnType, List<String> arguments) {
         this.symbolType = SymbolType.FUNCTION;
         this.name = name;
-        this.content = arguments;
+        this.content = arguments != null ? arguments.stream().map(arg -> arg.replace("{", "").replace("}", "")).toList() : null;
         this.returnType = returnType;
     }
 
@@ -93,7 +94,13 @@ public class Symbol {
         if(this.getSymbolType() == SymbolType.FUNCTION) {
             if(symbol.getArguments().size() != this.getArguments().size()) return false;
             for(int i = 0; i < this.getArguments().size(); i++) {
-                if(!symbol.getArguments().get(i).equals(this.getArguments().get(i))) return false;
+                String[] arg1 = symbol.getArguments().get(i).split(":");
+                String[] arg2 = this.getArguments().get(i).split(":");
+
+                // compare the fields at 0: type of symbol (simple, array, struct, function)
+                // and field 3: type of the argument (char, struct name etc)
+                // in this way, we can check arguments by type even if they have different names or element count
+                if(!arg1[0].equals(arg2[0]) || !arg1[2].equals(arg2[2])) return false;
             }
             return true;
         }
@@ -106,17 +113,49 @@ public class Symbol {
         return Objects.hash(symbolType, name, contentType, elementCount, content, returnType);
     }
 
+    private String getFieldsString() {
+        StringBuilder s = new StringBuilder();
+        List<String> fields = this.getFields();
+
+        if(fields == null) return "{}";
+
+        s.append("{");
+        for(String field: fields) {
+            s.append(field);
+            s.append(",");
+        }
+        s.append("}");
+
+        return s.toString();
+    }
+
+    private String getArgsString() {
+        StringBuilder s = new StringBuilder();
+        List<String> args = this.getArguments();
+
+        if(args == null) return "{}";
+
+        s.append("{");
+        for(String arg: args) {
+            s.append(arg);
+            s.append(",");
+        }
+        s.append("}");
+
+        return s.toString();
+    }
+
     @Override
     public String toString() {
         switch (symbolType) {
             case SIMPLE:
-                return "{" + name + ":" + contentType + "}";
+                return "{SIMPLE:" + name + ":" + contentType + "}";
             case ARRAY:
-                return "{" + name + ":" + contentType + ":" + elementCount + "}";
+                return "{ARRAY:" + name + ":" + contentType + ":" + elementCount + "}";
             case FUNCTION:
-                return "{" + name + ":" + returnType + ":args:" + getArguments() + "}";
+                return "{FUNCTION:" + name + ":" + returnType + ":args:" + getArgsString() + "}";
             case STRUCT:
-                return "{" + name + ":fields:" + getFields() + "}";
+                return "{STRUCT:" + name + ":fields:" + getFieldsString() + "}";
         }
 
         return null;
