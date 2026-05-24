@@ -49,8 +49,8 @@ public class Symbol {
     }
 
     public String getContentType() throws WrongSymbolTypeException {
-        if(this.symbolType != SymbolType.ARRAY) {
-            throw new WrongSymbolTypeException("Content type is only for arrays");
+        if(this.symbolType != SymbolType.ARRAY && this.symbolType != SymbolType.SIMPLE) {
+            throw new WrongSymbolTypeException("Content type is only for arrays and simple types");
         }
         return contentType;
     }
@@ -77,7 +77,7 @@ public class Symbol {
     }
 
     public List<String> getFields() {
-        if(this.symbolType != SymbolType.STRUCT) {
+        if(!isStructContent()) {
             throw new WrongSymbolTypeException("Fields are only for functions");
         }
         return content;
@@ -158,5 +158,18 @@ public class Symbol {
         }
 
         return null;
+    }
+
+    public boolean isArray() {
+        return symbolType == SymbolType.ARRAY;
+    }
+
+    public boolean isStructContent() {
+        try {
+            TypeBase tb = TypeBase.valueOf(contentType.toUpperCase());
+            return false;
+        } catch(Exception _) {
+            return true;
+        }
     }
 }

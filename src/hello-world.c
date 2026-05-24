@@ -1,19 +1,22 @@
-int doSomething(int x, bool y) {
-    bool a;
-    bool b;
+struct test {
+     int x;
+     bool y[10];
+};
 
-    a = x;
-    b = y;
+struct test2 {
+    test abc;
+};
 
-    return (a || b) && (!a || b);
+int sum(int x, int y) {
+    return x + y;
 }
 
-void put_s(char name[10]) {}
-
 int main() {
-    int c;
-    char string[];
+    test2 a;
+    bool c;
+    int b;
 
-    put_s(string);
+    int w;
+    w = (20 + 4) / 8 + 20*b;
     return 0;
 }

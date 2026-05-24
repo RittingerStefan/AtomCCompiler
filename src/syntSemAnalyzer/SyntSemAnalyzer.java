@@ -2,11 +2,9 @@ package syntSemAnalyzer;
 
 import lexer.Token;
 import lexer.TokenType;
-import syntSemAnalyzer.semantic.Symbol;
-import syntSemAnalyzer.semantic.SymbolTable;
+import syntSemAnalyzer.semantic.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class SyntSemAnalyzer {
@@ -120,7 +118,7 @@ public class SyntSemAnalyzer {
     // duplicated to make adding struct fields easier
     private Symbol varDefStruct() {
         Token typeName = tokens.getFirst();
-        if(!typeBase()) {
+        if(typeBase() == null) {
             return null;
         }
 
@@ -157,7 +155,7 @@ public class SyntSemAnalyzer {
     // rule: varDef: typeBase ID arrayDecl? SEMICOLON
     private boolean varDef() {
         Token typeName = tokens.getFirst();
-        if(!typeBase()) {
+        if(typeBase() == null) {
             return false;
         }
 
@@ -199,10 +197,29 @@ public class SyntSemAnalyzer {
     }
 
     // rule: typeBase: INT | DOUBLE | CHAR | BOOL | STRUCT ID
-    private boolean typeBase() {
-        return consume(TokenType.TKN_INT_IDENT) || consume(TokenType.TKN_DOUBLE_IDENT)
-                || consume(TokenType.TKN_CHAR_IDENT) || consume(TokenType.TKN_BOOL_IDENT)
-                || consume(TokenType.TKN_IDENT);
+    private Type typeBase() {
+        if(consume(TokenType.TKN_INT_IDENT)) {
+            return new Type(TypeBase.INT);
+        }
+
+        if(consume(TokenType.TKN_DOUBLE_IDENT)) {
+            return new Type(TypeBase.DOUBLE);
+        }
+
+        if(consume(TokenType.TKN_CHAR_IDENT)) {
+            return new Type(TypeBase.CHAR);
+        }
+
+        if(consume(TokenType.TKN_BOOL_IDENT)) {
+            return new Type(TypeBase.BOOL);
+        }
+
+        Token typeName = tokens.getFirst();
+        if(consume(TokenType.TKN_IDENT)) {
+            return new Type(typeName.getValue().toUpperCase());
+        }
+
+        return null;
     }
 
     // rule: arrayDecl: LBRACKET CT_INT? RBRACKET
@@ -229,7 +246,7 @@ public class SyntSemAnalyzer {
     //	            stmCompound
     private boolean fnDef() {
         Token returnType = tokens.getFirst();
-        if(!(typeBase() || consume(TokenType.TKN_VOID_IDENT))) {
+        if(!(typeBase() != null || consume(TokenType.TKN_VOID_IDENT))) {
             return false;
         }
 
@@ -276,7 +293,7 @@ public class SyntSemAnalyzer {
     // rule: fnParam: typeBase ID arrayDecl?
     private Symbol fnParam() {
         Token type = tokens.getFirst();
-        if(!typeBase()) {
+        if(typeBase() == null) {
             return null;
         }
 
@@ -348,7 +365,7 @@ public class SyntSemAnalyzer {
             throw new Error("Missing '(' in if statement at " + getLineAndColumnForError());
         }
 
-        if(!expr()) {
+        if(expr() == null) {
             throw new Error("Missing expression in if statement at " + getLineAndColumnForError());
         }
 
@@ -379,7 +396,7 @@ public class SyntSemAnalyzer {
             throw new Error("Missing '(' in while statement at " + getLineAndColumnForError());
         }
 
-        if(!expr()) {
+        if(expr() == null) {
             throw new Error("Missing expression in while statement at " + getLineAndColumnForError());
         }
 
@@ -469,240 +486,337 @@ public class SyntSemAnalyzer {
     }
 
     // rule: expr: exprAssign
-    private boolean expr() {
-        return exprAssing();
+    private Type expr() {
+        return exprAssign(null);
     }
 
     // rule: exprAssign: exprAssignable ASSIGN exprAssign | exprOr
-    private boolean exprAssing() {
-        if(exprAssignable()) {
+    private Type exprAssign(Type expr) {
+        Type assignee = exprAssignable();
+        if(assignee != null) {
             if(consume(TokenType.TKN_ASSIGN)) {
                 if(checkNextToken(TokenType.TKN_SEMICOLON)) {
                     throw new Error("Missing value for assignment at " + getLineAndColumnForError());
                 }
-                if(exprAssing()) {
-                    return true;
+                Type exprAssign = exprAssign(assignee);
+                if(exprAssign != null) {
+                    TypeHelper.getArithType(assignee, exprAssign, false);
+                    return assignee;
                 }
             }
             else
-                return false;
+                TypeHelper.getArithType(assignee, expr, false);
+                return assignee;
         }
-        else if(exprOr()) {
-            return true;
+        else {
+            Type exprOr = exprOr();
+            if(exprOr != null) {
+                return exprOr;
+            }
         }
 
-        return false;
+        return null;
     }
 
     // rule: exprAssignable: ID ((LBRACKET exprOR  RBRACKET)? (DOT ID)?)*
-    private boolean exprAssignable() {
+    private Type exprAssignable() {
         Token varName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
-            return false;
+            return null;
         }
 
-        if(!symbolTable.checkIfDefined(varName.getValue())) {
+        Symbol s = symbolTable.getSymbolWithId(varName.getValue());
+        if(s == null) {
             throw new Error("Undeclared identifier used at " + getLineAndColumnForError());
         }
 
         if(!checkNextToken(TokenType.TKN_LBRACKET) && !checkNextToken(TokenType.TKN_DOT)) {
             if(checkNextToken(TokenType.TKN_ASSIGN)) {
-                return true;
+                return new Type(s);
             }
 
             tokens.addFirst(varName);
-            return false;
+            return null;
         }
+
+        Type t = new Type(s);
+        boolean readArray = false;
 
         while(true) {
             if(consume(TokenType.TKN_LBRACKET)) {
-                if(!exprOr()) {
+                if(readArray) {
+                    throw new Error("Multidimensional arrays are not permitted in this language at " + getLineAndColumnForError());
+                }
+
+                if(!s.isArray()) {
+                    throw new Error("Trying to index non array at " + getLineAndColumnForError());
+                }
+
+                Type exprOr = exprOr();
+                if(exprOr == null) {
                     throw new Error("Wrong expression as array index at " + getLineAndColumnForError());
                 }
+
+                if(!exprOr.isTypeBase() && exprOr.getTypeBase() != TypeBase.INT) {
+                    throw new Error("Trying to index with non-integer type at " + getLineAndColumnForError());
+                }
+
                 if(!consume(TokenType.TKN_RBRACKET)) {
                     throw new Error("Missing ']' after array index at " + getLineAndColumnForError());
                 }
+
+                boolean isTypeBase = false;
+
+                try {
+                    TypeBase tb = TypeBase.valueOf(s.getContentType().toUpperCase());
+                    isTypeBase = true;
+                } catch(Exception _) {}
+
+                // if typeBase is false, then we have a structure
+                if(!isTypeBase) {
+                    List<String> fields = symbolTable.getFieldsForStruct(s.getContentType());
+                    s = new Symbol(s.getContentType(), fields);
+                }
+                else s = new Symbol("aux", s.getContentType());
+
+                t = new Type(s.getContentType());
+                readArray = true;
                 continue;
             }
             if(consume(TokenType.TKN_DOT)) {
+                Token fieldName = tokens.getFirst();
                 if(!consume(TokenType.TKN_IDENT)) {
                     throw new Error("Expected identifier of struct member at " + getLineAndColumnForError());
                 }
+
+                if(!s.isStructContent()) {
+                    throw new Error("Attempting to access member of non struct at " + getLineAndColumnForError());
+                }
+
+                String fieldInfo = symbolTable.getFieldForStruct(s.getContentType(), fieldName.getValue());
+                if(fieldInfo == null) {
+                    throw new Error("Struct type " + s.getName() + " has no field " + fieldName);
+                }
+
+                String[] split = fieldInfo.split(":");
+                String type = split[0].replace("{", "");
+                String contentType = split[2].replace("}", "");
+
+                switch(SymbolType.valueOf(type)) {
+                    case SymbolType.SIMPLE:
+                        s = new Symbol("aux", contentType);
+                        t = new Type(contentType);
+                        break;
+                    case ARRAY:
+                        int count = Integer.parseInt(split[3].replace("}", ""));
+                        s = new Symbol("aux", contentType, count);
+                        t = new Type(contentType, count);
+                        break;
+                    case STRUCT:
+                        String name = split[1];
+                        List<String> fields = symbolTable.getFieldsForStruct(name);
+                        s = new Symbol(name, fields);
+                        t = new Type(name);
+                        break;
+                }
+
+                readArray = false;
                 continue;
             }
             break;
         }
 
-        return true;
+        return t;
     }
 
     // rule: exprOr: exprOr OR exprAnd | exprAnd
     // rewritten: exprAnd exprOrAux
-    private boolean exprOr() {
-        if (!exprAnd()) {
-            return false;
+    private Type exprOr() {
+        Type exprAnd = exprAnd();
+        if (exprAnd == null) {
+            return null;
         }
 
-        if(!exprOrAux()) {
+        Type exprOrAux = exprOrAux(exprAnd);
+        if(exprOrAux == null) {
             throw new Error("Wrong OR expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return TypeHelper.getArithType(exprAnd, exprOrAux, false);
     }
 
     // rule: exprOrAux: OR exprAnd exprOrAux | eps
-    private boolean exprOrAux() {
+    private Type exprOrAux(Type expr) {
         if(consume(TokenType.TKN_OR)) {
-            if(exprAnd()) {
-                if (exprOrAux()) {
-                    return true;
-                }
+            Type exprAnd = exprAnd();
+            if(exprAnd != null) {
+                return TypeHelper.getArithType(exprAnd, exprOrAux(exprAnd), false);
             }
             else throw new Error("Missing '||' in expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return expr;
     }
 
     // rule: exprAnd: exprAnd AND exprEq | exprEq
     // rewritten: exprAnd: exprEq exprAndAux
-    private boolean exprAnd() {
-        if(!exprEq()) {
-            return false;
+    private Type exprAnd() {
+        Type exprEq = exprEq();
+        if(exprEq == null) {
+            return null;
         }
 
-        if(!exprAndAux()) {
+        Type exprAndAux = exprAndAux(exprEq);
+        if(exprAndAux == null) {
             throw new Error("Wrong AND expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return TypeHelper.getArithType(exprEq, exprAndAux, false);
     }
 
 
     // rule: exprAndAux: AND exprEq exprAndAux | eps
-    private boolean exprAndAux() {
+    private Type exprAndAux(Type expr) {
         if(consume(TokenType.TKN_AND)) {
-            if(exprEq()) {
-                if(exprAndAux()) {
-                    return true;
+            Type exprEq = exprEq();
+            if(exprEq != null) {
+                Type exprAndAux = exprAndAux(exprEq);
+                if(exprAndAux != null) {
+                    return TypeHelper.getArithType(exprAndAux, exprEq, false);
                 }
             } throw new Error("Missing '&&' in expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return expr;
     }
 
     // rule: exprEq: exprEq ( EQUAL | NOTEQ ) exprRel | exprRel
     // rewritten: exprEq: exprRel exprEqAux
-    private boolean exprEq() {
-        if(!exprRel()) {
-            return false;
+    private Type exprEq() {
+        Type exprRel = exprRel();
+        if(exprRel == null) {
+            return null;
         }
 
-        if(!exprEqAux()) {
+        Type exprEqAux = exprEqAux(exprRel);
+        if(exprEqAux == null) {
             throw new Error("Wrong EQUAL expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return TypeHelper.getArithType(exprRel, exprEqAux, false);
     }
 
     // rule: exprEqAux: (EQUAL | NOTEQ) exprRel exprEqAux | eps
-    private boolean exprEqAux() {
+    private Type exprEqAux(Type expr) {
         if(consume(TokenType.TKN_EQ) || consume(TokenType.TKN_NOT_EQ)) {
-            if(exprRel()) {
-                if(exprEqAux()) {
-                    return true;
+            Type exprRel = exprRel();
+            if(exprRel != null) {
+                Type exprEqAux = exprEqAux(exprRel);
+                if(exprEqAux != null) {
+                    return TypeHelper.getArithType(exprRel, exprEqAux, false);
                 }
             } else throw new Error("Missing '==' or '!=' in expression at  " + getLineAndColumnForError());
         }
 
-        return true;
+        return expr;
     }
 
 
     // rule: exprRel: exprRel ( LESS | LESSEQ | GREATER | GREATEREQ ) exprAdd | exprAdd
     // rewritten: exprRel: exprAdd exprRelAux
-    private boolean exprRel() {
-        if(!exprAdd()) {
-            return false;
+    private Type exprRel() {
+        Type exprAdd = exprAdd();
+        if(exprAdd == null) {
+            return null;
         }
 
-        if(!exprRelAux()) {
+        Type exprRelAux = exprRelAux(exprAdd);
+        if(exprRelAux == null) {
             throw new Error("Wrong REL expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return TypeHelper.getArithType(exprAdd, exprRelAux, false);
     }
 
     // rule: exprRelAux: ( LESS | LESSEQ | GREATER | GREATEREQ ) exprAdd exprRelAux | eps
-    private boolean exprRelAux() {
+    private Type exprRelAux(Type expr) {
         if(consume(TokenType.TKN_LT) || consume(TokenType.TKN_GT) || consume(TokenType.TKN_LE) || consume(TokenType.TKN_GE)) {
-            if(exprAdd()) {
-                if(exprRelAux()) {
-                    return true;
+            Type exprAdd = exprAdd();
+            if(exprAdd != null) {
+                Type exprRelAux = exprRelAux(exprAdd);
+                if(exprRelAux != null) {
+                    return TypeHelper.getArithType(exprAdd, exprRelAux, false);
                 }
             } throw new Error("Mission comparison in expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return expr;
     }
 
     // rule: exprAdd: exprAdd ( ADD | SUB ) exprMul | exprMul
     // rewritten: exprAdd: exprMul exprAddAux
-    private boolean exprAdd() {
-        if(!exprMul()) {
-            return false;
+    private Type exprAdd() {
+        Type exprMul = exprMul();
+        if(exprMul == null) {
+            return null;
         }
 
-        if(!exprAddAux()) {
+        Type exprAddAux = exprAddAux(exprMul);
+        if(exprAddAux == null) {
             throw new Error("Wrong ADD expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return TypeHelper.getArithType(exprMul, exprAddAux, false);
     }
 
     // rule: exprAddAux: ( ADD | SUB ) exprMul exprAddAux | eps
-    private boolean exprAddAux() {
+    private Type exprAddAux(Type expr) {
         if(consume(TokenType.TKN_ADD) || consume(TokenType.TKN_SUB)) {
-            if(exprMul()) {
-                if(exprAddAux()) {
-                    return true;
+            Type exprMul = exprMul();
+            if(exprMul != null) {
+                Type exprAddAux = exprAddAux(exprMul);
+                if(exprAddAux != null) {
+                    return TypeHelper.getArithType(exprMul, exprAddAux, false);
                 }
             } else throw new Error("Missing '+' or '-' in expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return expr;
     }
 
     // rule: exprMul: exprMul ( MUL | DIV ) exprCast | exprCast
     // rewritten: exprMul: exprCast exprMulAux
-    private boolean exprMul() {
-        if(!exprCast()) {
-            return false;
+    private Type exprMul() {
+        Type exprCast = exprCast();
+        if(exprCast == null) {
+            return null;
         }
 
-        if(!exprMulAux()) {
+        Type exprMulAux = exprMulAux(exprCast);
+        if(exprMulAux == null) {
             throw new Error("Wrong MUL expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return TypeHelper.getArithType(exprCast, exprMulAux, false);
     }
 
     // rule: exprMulAux: ( MUL | DIV ) exprCast exprMulAux | eps
-    private boolean exprMulAux() {
+    private Type exprMulAux(Type expr) {
         if(consume(TokenType.TKN_MUL) || consume(TokenType.TKN_DIV)) {
-            if(exprCast()) {
-                if(exprMulAux()) {
-                    return true;
+            Type exprCast = exprCast();
+            if(exprCast != null) {
+                Type exprMulAux = exprMulAux(exprCast);
+                if(exprMulAux != null) {
+                    return TypeHelper.getArithType(exprCast, exprMulAux, false);
                 }
             } else throw new Error("Missing '*' or '/' in expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return expr;
     }
 
     // rule: exprCast: LPAR typeBase arrayCastType? RPAR exprCast | exprUnary
-    private boolean exprCast() {
+    private Type exprCast() {
         Token firstToken = tokens.getFirst();
         if(!consume(TokenType.TKN_LPAREN)) {
             return exprUnary();
@@ -710,12 +824,14 @@ public class SyntSemAnalyzer {
 
         Token secondToken = tokens.getFirst();
 
-        if(!typeBase()) {
+        Type tb = typeBase();
+        if(tb == null) {
             tokens.addFirst(firstToken);
             return exprUnary();
         }
 
-        if(!arrayCastType()) {
+        boolean arrayCastType = arrayCastType();
+        if(!arrayCastType) {
             tokens.addFirst(secondToken);
             tokens.addFirst(firstToken);
             return exprUnary();
@@ -725,11 +841,14 @@ public class SyntSemAnalyzer {
             throw new Error("Missing ')' in expression cast at " + getLineAndColumnForError());
         }
 
-        if(!exprCast()) {
+        if(exprCast() == null) {
             throw new Error("Wrong expr cast at " + getLineAndColumnForError());
         }
 
-        return true;
+        if(arrayCastType()) {
+            return new Type(tb.getTypeName(), 0);
+        }
+        return new Type(tb.getTypeName(), 0);
     }
 
     // used to optionally allow [] as type cast
@@ -749,15 +868,16 @@ public class SyntSemAnalyzer {
     }
 
     // rule: exprUnary: ( SUB | NOT ) exprUnary | exprPostfix
-    private boolean exprUnary() {
+    private Type exprUnary() {
         if(!(consume(TokenType.TKN_SUB) || consume(TokenType.TKN_NOT))) {
             return exprPostfix();
         }
 
-        if(!exprUnary()) {
+        Type exprUnary = exprUnary();
+        if(exprUnary == null) {
             throw new Error("Wrong UNARY expr at " + getLineAndColumnForError());
         }
-        return true;
+        return exprUnary;
     }
 
 
@@ -765,83 +885,173 @@ public class SyntSemAnalyzer {
     //	    | exprPostfix DOT ID
     //	    | exprPrimary
     // rewritten: exprPostFix: exprPrimary exprPostfixAux
-    private boolean exprPostfix() {
-        if(!exprPrimary()) {
-            return false;
+    private Type exprPostfix() {
+        Type exprPrimary = exprPrimary();
+        if(exprPrimary == null) {
+            return null;
         }
 
-        if(!exprPostfixAux()) {
+        Type exprPostfixAux = exprPostfixAux(exprPrimary);
+        if(exprPostfixAux == null) {
             throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return exprPostfixAux;
     }
 
     // rule: exprPostfixAux: ( DOT ID exprPostfixAux ) | ( LBRACKET expr RBRACKET exrpPostfixAux) | eps
-    private boolean exprPostfixAux() {
+    private Type exprPostfixAux(Type exprPrimary) {
         if(consume(TokenType.TKN_DOT)) {
+            Type t = null;
+            if(exprPrimary.isTypeBase() || exprPrimary.isArray()) {
+                throw new Error("Cannot access modifier of type " + exprPrimary.getTypeName() + " at " + getLineAndColumnForError());
+            }
+
+            Token field = tokens.getFirst();
             if(!consume(TokenType.TKN_IDENT)) {
                 throw new Error("Missing identifier for struct direct member access at " + getLineAndColumnForError());
             }
 
-            if(exprPostfixAux()) {
-                return true;
+            List<String> fields = symbolTable.getFieldsForStruct(exprPrimary.getTypeName());
+
+            String fieldInfo = symbolTable.getFieldForStruct(exprPrimary.getTypeName(), field.getValue());
+
+            if(fieldInfo == null) {
+                throw new Error("Struct type " + exprPrimary.getTypeName() + " has no field " + field);
+            }
+
+            String[] split = fieldInfo.split(":");
+            String type = split[0];
+            String contentType = split[2];
+
+            switch(SymbolType.valueOf(type)) {
+                case SymbolType.SIMPLE:
+                    t = new Type(contentType);
+                    break;
+                case ARRAY:
+                    int count = Integer.parseInt(split[3]);
+                    t = new Type(contentType, count);
+                    break;
+                case STRUCT:
+                    String name = split[1];
+                    t = new Type(name);
+                    break;
+            }
+
+            Type exprPostfixAux = exprPostfixAux(t);
+            if(exprPostfixAux != null) {
+                return exprPostfixAux;
             }
         }
         else if(consume(TokenType.TKN_LBRACKET)) {
-            if(!expr()) {
+            Type expr = expr();
+            if(expr == null) {
                 throw new Error("Wrong PRIMARY expression at " + getLineAndColumnForError());
+            }
+
+            if(!exprPrimary.isArray()) {
+                throw new Error("Cannot index non array type at " + getLineAndColumnForError());
+            }
+
+            if(expr.isTypeBase() || expr.isArray() || expr.getTypeBase() != TypeBase.INT) {
+                throw new Error("Attempting to index array with non number at " + getLineAndColumnForError());
             }
 
             if(!consume(TokenType.TKN_RBRACKET)) {
                 throw new Error("Missing ']' in expression postfix at " + getLineAndColumnForError());
             }
 
-            if(exprPostfixAux()) {
-                return true;
+            String type = exprPrimary.getTypeName().replace("[]", "");
+            Type t = new Type(type);
+
+            Type exprPostfixAux = exprPostfixAux(t);
+            if(exprPostfixAux != null) {
+                return exprPostfixAux;
             }
         }
-        return true;
+
+        return exprPrimary;
     }
 
     // rule: exprPrimary: ID ( LPAR ( expr ( COMMA expr )* )? RPAR )?
     //	    | CT_INT | CT_REAL | CT_CHAR | CT_STRING | LPAR expr RPAR
-    private boolean exprPrimary() {
-        return exprPrimaryAux1() || consume(TokenType.TKN_NUM_DEC) || consume(TokenType.TKN_NUM_HEX) || consume(TokenType.TKN_NUM_OCT)
-                || consume(TokenType.TKN_REAL) || consume(TokenType.TKN_CHAR) || consume(TokenType.TKN_STR) || exprPrimaryAux2();
+    private Type exprPrimary() {
+        if(consume(TokenType.TKN_NUM_DEC)) {
+            return new Type(TypeBase.INT);
+        }
+        if(consume(TokenType.TKN_NUM_HEX)) {
+            return new Type(TypeBase.INT);
+        }
+        if(consume(TokenType.TKN_NUM_OCT)) {
+            return new Type(TypeBase.INT);
+        }
+        if(consume(TokenType.TKN_REAL)) {
+            return new Type(TypeBase.DOUBLE);
+        }
+        if(consume(TokenType.TKN_CHAR)) {
+            return new Type(TypeBase.CHAR);
+        }
+
+        Token str = tokens.getFirst();
+        if(consume(TokenType.TKN_STR)) {
+            return new Type(TypeBase.CHAR, str.getValue().length());
+        }
+
+        Type ret1 = exprPrimaryAux1();
+        if(ret1 != null) {
+            return ret1;
+        }
+
+        Type ret2 = exprPrimaryAux2();
+        if(ret2 != null) {
+            return ret2;
+        }
+
+        return null;
     }
 
     // rule: ID ( LPAR ( expr ( COMMA expr )* )? RPAR )?
-    private boolean exprPrimaryAux1() {
+    private Type exprPrimaryAux1() {
         Token idName = tokens.getFirst();
         if(!consume(TokenType.TKN_IDENT)) {
-            return false;
+            return null;
         }
 
+        Symbol s = symbolTable.getSymbolWithId(idName.getValue());
         if(!symbolTable.checkIfDefined(idName.getValue())) {
             throw new Error("Undefined identifier '" + idName.getValue() + "' at " + getLineAndColumnForError());
         }
 
         if(consume(TokenType.TKN_LPAREN)) {
+            List<Type> types = new ArrayList<>();
             do {
-                expr();
+                Type t = expr();
+                types.add(t);
             } while(consume(TokenType.TKN_COMMA));
 
             if(!consume(TokenType.TKN_RPAREN)) {
                 throw new Error("Missing ')' in expression primary at " + getLineAndColumnForError());
             }
+
+            Symbol func = symbolTable.findFunctionWithSameParameters(idName.getValue(), types);
+            if(func == null) {
+                throw new Error("Found no function with these parameters at " + getLineAndColumnForError());
+            }
+
+            return new Type(func);
         }
 
-        return true;
+        return new Type(s);
     }
 
     // rule: LPAR expr RPAR
-    private boolean exprPrimaryAux2() {
+    private Type exprPrimaryAux2() {
         if(!consume(TokenType.TKN_LPAREN)) {
-            return false;
+            return null;
         }
 
-        if(!expr()) {
+        Type ret = expr();
+        if(ret == null) {
             throw new Error("Wrong primary expression at " + getLineAndColumnForError());
         }
 
@@ -849,8 +1059,6 @@ public class SyntSemAnalyzer {
             throw new Error("Missing ')' in primary expression at " + getLineAndColumnForError());
         }
 
-        return true;
+        return ret;
     }
-
-
 }
